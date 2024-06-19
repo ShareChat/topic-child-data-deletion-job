@@ -1,4 +1,4 @@
-FROM moj-sgp-armory.platform.internal/dockerhub/golang:1.22-alpine
+FROM sc-mum-armory.platform.internal/dockerhub/golang:1.22-alpine
 
 RUN apk update && apk upgrade && apk add --no-cache git procps && apk add --no-cache --update go gcc g++
 RUN go env -w GOPRIVATE=github.com/ShareChat

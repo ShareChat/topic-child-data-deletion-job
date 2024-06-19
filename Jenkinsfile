@@ -1,21 +1,36 @@
 pipeline {
   agent {
     kubernetes {
-      label 'sc-live-topic-child-database-cleanup-producer'
+      label 'sc-live-topic-child-table-cleanup-producer'
       yaml """
 apiVersion: v1
 kind: Pod
 spec:
   containers:
   - name: dind
-    image: sc-mum-armory.platform.internal/devops/dind:v1
+    image: sc-mum-armory.platform.internal/devops/dind:v2
     securityContext:
       privileged: true
+    env:
+    - name: DOCKER_HOST
+      value: tcp://localhost:2375
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
     volumeMounts:
       - name: dind-storage
         mountPath: /var/lib/docker
+    readinessProbe:
+      tcpSocket:
+        port: 2375
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    livenessProbe:
+      tcpSocket:
+        port: 2375
+      initialDelaySeconds: 30
+      periodSeconds: 20
   - name: builder
-    image: sc-mum-armory.platform.internal/devops/builder-image-golang-1.18-armory
+    image: sc-mum-armory.platform.internal/devops/builder-image-armory
     command:
     - sleep
     - infinity
@@ -37,34 +52,42 @@ spec:
     }
   }
 
+
+  options {
+    timeout(time: 10, unit: 'MINUTES')
+    copyArtifactPermission('*')
+  }
+
   environment {
-     sc_regions="mumbai"
-     app="sc-live-topic-child-database-cleanup-producer"
-     buildarg_DEPLOYMENT_ID="sc-live-topic-child-database-cleanup-producer-$GIT_COMMIT"
-     buildarg_GITHUB_TOKEN=credentials('github-access')
+    GITHUB_TOKEN = credentials('github-access')
+    sc_regions="mumbai"
+    app="sc-live-topic-table-database-cleanup-producer"
+    buildarg_DEPLOYMENT_ID="sc-live-topic-table-database-cleanup-producer-$GIT_COMMIT"
+    buildarg_GITHUB_TOKEN=credentials('github-access')
+    JS_REGISTRY_TOKEN = credentials('JS_REGISTRY_TOKEN')
+    buildarg_JS_REGISTRY_TOKEN = credentials('JS_REGISTRY_TOKEN')
   }
 
   stages {
+      stage('build') {
+        steps {
+          container('builder') {
+              sh 'armory build'
+          }
+        }
+      }
 
-    stage('build') {
-      steps {
-        container('builder') {
-            sh 'armory build'
+      stage('push') {
+        when {
+          anyOf {
+            branch 'main'
+          }
+        }
+        steps {
+          container('builder') {
+            sh 'armory push'
+          }
         }
       }
-    }
-
-    stage('push') {
-      when {
-        anyOf {
-          branch 'main'
-        }
-      }
-      steps {
-        container('builder') {
-          sh 'armory push'
-        }
-      }
-    }
   }
 }

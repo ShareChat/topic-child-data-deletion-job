@@ -1,9 +1,8 @@
-FROM sc-mum-armory.platform.internal/dockerhub/golang:1.22-alpine
+FROM sc-mum-armory.platform.internal/dockerhub/golang:1.22
 
-RUN apk update && apk upgrade && apk add --no-cache git procps && apk add --no-cache --update go gcc g++
 RUN go env -w GOPRIVATE=github.com/ShareChat
 
-WORKDIR /lte-cohort-service
+WORKDIR /sc-live-database-cleanup
 
 ARG GITHUB_TOKEN
 ARG DEPLOYMENT_ID

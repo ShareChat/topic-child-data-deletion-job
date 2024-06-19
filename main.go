@@ -66,40 +66,38 @@ func main() {
 
 	for {
 		pageNumber = pageNumber + 1
-		topicAndLastUpdatedAt, _ := getTopics(ctx, sourceSpannerClient, pageSizeInt, pageNumber)
 
-		if len(topicAndLastUpdatedAt) != 0 {
-			maxGoRoutinesChannel <- struct{}{}
+		maxGoRoutinesChannel <- struct{}{}
 
-			go func(topics map[string]float64) {
+		go func(pageNumber int) {
 
-				defer func() {
-					<-maxGoRoutinesChannel
-				}()
+			defer func() {
+				<-maxGoRoutinesChannel
+			}()
 
-				// send all the topics as a single JSON array
-				topicsIdArray := make([]string, 0)
+			topicAndLastUpdatedAt, _ := getTopics(ctx, sourceSpannerClient, pageSizeInt, pageNumber)
 
-				for topicId, lastUpdatedAt := range topics {
-					if lastUpdatedAt < epochTimeStampOlderThanOneYear { // double check
-						topicsIdArray = append(topicsIdArray, topicId)
-					} else {
-						// This shoudln't happen - so we panic
-						panic("lastUpdatedAt is greater than 1686375840000")
-					}
+			// send all the topics as a single JSON array
+			topicsIdArray := make([]string, 0)
+
+			for topicId, lastUpdatedAt := range topicAndLastUpdatedAt {
+				if lastUpdatedAt < epochTimeStampOlderThanOneYear { // double check
+					topicsIdArray = append(topicsIdArray, topicId)
+				} else {
+					// This shoudln't happen - so we panic
+					panic("lastUpdatedAt is greater than 1686375840000")
 				}
+			}
 
-				// finally publish
-				publishToPubSub(ctx, pubSubTopicToPublish, topicsIdArray)
+			// finally publish
+			publishToPubSub(ctx, pubSubTopicToPublish, topicsIdArray)
 
-			}(topicAndLastUpdatedAt)
-		}
+		}(pageNumber)
 
 	}
 }
 
 func publishToPubSub(ctx context.Context, pubsubTopic *pubsub.Topic, topics []string) {
-
 	// Publish the JSON data as a single message
 	topicIdsAsJSON, err := json.Marshal(topics)
 	result := pubsubTopic.Publish(ctx, &pubsub.Message{
